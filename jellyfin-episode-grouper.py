@@ -3,7 +3,9 @@
 import sys
 import requests
 import re
-
+from dateutil import parser
+import pytz
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 try:
@@ -108,15 +110,39 @@ def group_episodes(episode_ids: List[str]):
         exit(1)
 
 
+def check_episodes_aired_recent(episodes):
+
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    #default_dt = datetime(1971,1,1,tzinfo=pytz.UTC)
+    default_dt = '1971-01-01T00:00:00+00:00'
+    for ep in episodes:
+        if parser.parse(ep.get('PremiereDate', default_dt)) > week_ago: 
+            return True
+
+
 series_list = list_series()
+with open('./exclusion_list.txt', 'r') as f:
+    exclusion_list = f.read().strip().split('\n')
+
+with open('./inclusion_list.txt', 'r') as f:
+    inclusion_list = f.read().strip().split('\n')
 
 for series in series_list:
+    if series["Name"] not in inclusion_list:
+        if series["Name"] in exclusion_list:
+            continue
+        else:
+            exclusion_list.append(series["Name"])
+    print(series["Name"])
     series_id = series["Id"]
     seasons = list_seasons(series_id)
     for season in seasons:
         season_id = season["Id"]
         episodes = list_episodes(season_id, series_id)
         episode_imdb_map = {}
+        #if not check_episodes_aired_recent(episodes):
+        #    continue
+        print(f'Group episodes for "{series["Name"]}"')
         for ep in episodes:
             episode_id = ep["Id"]
             episode = get_episode(episode_id)
@@ -141,3 +167,6 @@ for series in series_list:
             if len(episodes) > 1:
                 episode_ids = [episode["id"] for episode in episodes]
                 group_episodes(episode_ids)
+
+with open('./exclusion_list.txt', 'w') as f:
+    f.write('\n'.join(exclusion_list))
